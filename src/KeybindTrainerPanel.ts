@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import * as vscode from "vscode";
 import { getNonce } from "./getNonce";
 
@@ -105,6 +106,25 @@ export class KeybindTrainerPanel {
     this._panel.webview.html = this._getHtmlForWebview(webview);
     webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
+        case "onRequestKeybindings": {
+          vscode.window.showInformationMessage(
+            "Request for Keybindings has been made"
+          );
+
+          // TODO: Move into service
+          console.log("Reading keybinds");
+          const fileDirectory =
+            "C:/Users/adamp/AppData/Roaming/Code/User/keybindings.json";
+
+          var obj = JSON.parse(readFileSync(fileDirectory, "utf8"));
+          console.log(obj);
+
+          // Send response to webview
+          webview.postMessage({
+            type: "onResponseKeybindings",
+            value: (obj as any[]).slice(0, 5),
+          });
+        }
         case "onInfo": {
           if (!data.value) {
             return;
@@ -161,6 +181,9 @@ export class KeybindTrainerPanel {
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<link href="${stylesResetUri}" rel="stylesheet">
 				<link href="${stylesMainUri}" rel="stylesheet">
+        <script nonce=${nonce}>
+          const tsvscode = acquireVsCodeApi();
+        </script>
 			</head>
       <body>
 			</body>

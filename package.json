@@ -11,7 +11,8 @@
   ],
   "activationEvents": [
     "onCommand:keybind-trainer.showWebview",
-    "onCommand:keybind-trainer.refresh"
+    "onCommand:keybind-trainer.refresh",
+    "onCommand:keybind-trainer.read-keybinds"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -25,6 +26,11 @@
         "command": "keybind-trainer.refresh",
         "category": "Keybind Trainer",
         "title": "Refresh"
+      },
+      {
+        "command": "keybind-trainer.read-keybinds",
+        "category": "Keybind Trainer",
+        "title": "Read Keybinds"
       }
     ]
   },
