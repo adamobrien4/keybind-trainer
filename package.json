@@ -16,6 +16,16 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Keybind Trainer",
+      "properties": {
+        "keybind-trainer.keybindingsFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "File path to the keybindings file of VSCode\nD:/Dev/Programs/.../Code/keybindings.json"
+        }
+      }
+    },
     "commands": [
       {
         "command": "keybind-trainer.showWebview",
@@ -31,6 +41,16 @@
         "command": "keybind-trainer.read-keybinds",
         "category": "Keybind Trainer",
         "title": "Read Keybinds"
+      },
+      {
+        "command": "keybind-trainer.set-state",
+        "category": "Keybind Trainer",
+        "title": "Set State"
+      },
+      {
+        "command": "keybind-trainer.get-state",
+        "category": "Keybind Trainer",
+        "title": "Get State"
       }
     ]
   },
@@ -52,6 +72,7 @@
     "@rollup/plugin-typescript": "^11.0.0",
     "@tsconfig/svelte": "^3.0.0",
     "@types/glob": "^8.0.0",
+    "@types/lodash.xor": "^4.5.7",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
     "@types/vscode": "^1.74.0",
@@ -61,6 +82,7 @@
     "concurrently": "^7.6.0",
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
+    "lodash.xor": "^4.5.0",
     "mocha": "^10.1.0",
     "rollup": "^3.10.0",
     "rollup-plugin-css-only": "^4.3.0",

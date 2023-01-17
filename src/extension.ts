@@ -3,13 +3,24 @@
 import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { KeybindTrainerPanel } from "./KeybindTrainerPanel";
+import { keybindsFilePathKey } from "./constants";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand("keybind-trainer.showWebview", () => {
-      KeybindTrainerPanel.createOrShow(context.extensionUri);
+      if (
+        vscode.workspace
+          .getConfiguration("keybind-trainer")
+          .get(keybindsFilePathKey) !== undefined
+      ) {
+        KeybindTrainerPanel.createOrShow(context.extensionUri);
+      } else {
+        vscode.window.showErrorMessage(
+          `Setting "Keybind Trainer->${keybindsFilePathKey}" is not set!`
+        );
+      }
     })
   );
 
@@ -33,6 +44,24 @@ export function activate(context: vscode.ExtensionContext) {
         "C:/Users/adamp/AppData/Roaming/Code/User/keybindings.json";
 
       console.log(JSON.parse(readFileSync(keybindingsFilePath, "utf8")));
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("keybind-trainer.set-state", () => {
+      // NOTE: The value must be JSON-stringify-able
+      context.globalState.update("keybindingsFilePath", "C:/home/file.json");
+      console.log("State has been set");
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("keybind-trainer.get-state", () => {
+      console.log(context.globalState.keys);
+      console.log(
+        "State has been read ",
+        context.globalState.get("keybindingsFilePath")
+      );
     })
   );
 }

@@ -1,6 +1,8 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import * as vscode from "vscode";
+import { keybindsFilePathKey } from "./constants";
 import { getNonce } from "./getNonce";
+import { KeyToKeycode } from "./types";
 
 export class KeybindTrainerPanel {
   /**
@@ -13,6 +15,112 @@ export class KeybindTrainerPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
+
+  private _keyToKeycode: KeyToKeycode = {
+    backspace: 8,
+    tab: 9,
+    enter: 13,
+    shift: 16,
+    ctrl: 17,
+    alt: 18,
+    escape: 27,
+    space: 32,
+    pageup: 33,
+    pagedown: 34,
+    end: 35,
+    home: 36,
+    left: 37,
+    arrowleft: 37,
+    up: 38,
+    arrowup: 38,
+    right: 39,
+    arrowright: 39,
+    down: 40,
+    arrowdown: 40,
+    insert: 45,
+    delete: 46,
+    "0": 48,
+    "1": 49,
+    "2": 50,
+    "3": 51,
+    "4": 52,
+    "5": 53,
+    "6": 54,
+    "7": 55,
+    "8": 56,
+    "9": 57,
+    a: 65,
+    b: 66,
+    c: 67,
+    d: 68,
+    e: 69,
+    f: 70,
+    g: 71,
+    h: 72,
+    i: 73,
+    j: 74,
+    k: 75,
+    l: 76,
+    m: 77,
+    n: 78,
+    o: 79,
+    p: 80,
+    q: 81,
+    r: 82,
+    s: 83,
+    t: 84,
+    u: 85,
+    v: 86,
+    w: 87,
+    x: 88,
+    y: 89,
+    z: 90,
+    windows: 91,
+    "Right Click": 93,
+    numpad0: 96,
+    numpad1: 97,
+    numpad2: 98,
+    numpad3: 99,
+    numpad4: 100,
+    numpad5: 101,
+    numpad6: 102,
+    numpad7: 103,
+    numpad8: 104,
+    numpad9: 105,
+    "numpad*": 106,
+    numpadadd: 107,
+    numpadsubtract: 109,
+    numpadmultiply: 110,
+    numpaddivide: 111,
+    f1: 112,
+    f2: 113,
+    f3: 114,
+    f4: 115,
+    f5: 116,
+    f6: 117,
+    f7: 118,
+    f8: 119,
+    f9: 120,
+    f10: 121,
+    f11: 122,
+    f12: 123,
+    "My Computer": 182,
+    "My Calculator": 183,
+    ";": 186,
+    semicolon: 186,
+    equal: 187,
+    comma: 188,
+    minus: 189,
+    ".": 190,
+    dot: 190,
+    "/": 191,
+    slash: 191, // aka. forwardslash
+    tilde: 192,
+    openSquareBracket: 219,
+    backSlash: 220,
+    closingSquareBracket: 221,
+    backquote: 222, // aka. singlequote
+  };
 
   public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
@@ -113,16 +221,45 @@ export class KeybindTrainerPanel {
 
           // TODO: Move into service
           console.log("Reading keybinds");
-          const fileDirectory =
-            "C:/Users/adamp/AppData/Roaming/Code/User/keybindings.json";
+          const fileDirectory = vscode.workspace
+            .getConfiguration("keybind-trainer")
+            .get<string>(keybindsFilePathKey);
 
-          var obj = JSON.parse(readFileSync(fileDirectory, "utf8"));
+          if (fileDirectory === undefined || !existsSync(fileDirectory)) {
+            vscode.window.showErrorMessage(
+              `'keybind-trainer.${keybindsFilePathKey}' is invalid or does not exist on file`
+            );
+            return;
+          }
+
+          var obj = JSON.parse(readFileSync(fileDirectory, "utf8")) as {
+            command: string;
+            key: string;
+          }[];
           console.log(obj);
+
+          let parsedAndFormatted: { command: string; keys: number[] }[] = [];
+
+          // Parse keys into better format
+          for (let keybind of obj) {
+            let keyStr = keybind.key;
+
+            // Check that the keybind has keys set
+            if (keyStr !== "") {
+              let keys = keybind.key
+                .split("+")
+                .map(
+                  (key: string) =>
+                    this._keyToKeycode[key.toLowerCase().replace(/\[|\]/g, "")]
+                );
+              parsedAndFormatted.push({ command: keybind.command, keys: keys });
+            }
+          }
 
           // Send response to webview
           webview.postMessage({
             type: "onResponseKeybindings",
-            value: (obj as any[]).slice(0, 5),
+            value: parsedAndFormatted,
           });
         }
         case "onInfo": {
