@@ -5,6 +5,9 @@
   import * as pressed from "pressed";
   import type { Keybind, KeycodeToKey } from "../../src/types";
   import { xor } from "lodash";
+  import JSConfetti from "js-confetti";
+
+  const jsConfetti = new JSConfetti();
 
   export const keycodeToKey: KeycodeToKey = {
     8: "backspace",
@@ -108,6 +111,7 @@
   let keybinds: Keybind[] = [];
   let pressedKeys: number[] = [];
   let keybindIndex = Math.random() * keybinds.length;
+  let showConfetti = true;
 
   function onWindowMessage(event: any) {
     console.log("Message Recieved: ", { event });
@@ -126,11 +130,19 @@
     console.log(pressedKeys.length, keybinds[keybindIndex].keys.length);
     if (pressedKeys.length === keybinds[keybindIndex].keys.length) {
       // Check if arrays are equal
+      let doesKeybindMatch =
+        xor(pressedKeys, keybinds[keybindIndex].keys).length === 0;
       console.log(pressedKeys, "==", keybinds[keybindIndex].keys);
-      console.log(
-        "XOR",
-        xor(pressedKeys, keybinds[keybindIndex].keys).length === 0
-      );
+      console.log("XOR", doesKeybindMatch);
+
+      if (doesKeybindMatch && showConfetti) {
+        showConfetti = false;
+        jsConfetti.addConfetti();
+        setTimeout(() => {
+          showConfetti = true;
+          pickNewKeybind();
+        }, 1500);
+      }
     }
   }
 
@@ -153,51 +165,89 @@
   });
 </script>
 
-<h1>Keybind Trainer</h1>
-<span>by Adam O'Brien</span>
+<div id="container">
+  <h1>Adam's Keybind Trainer</h1>
 
-<hr />
+  <span>Loaded {keybinds.length} keybindings</span>
 
-<span>Currently Pressed keys: {pressedKeys}</span>
-<div class="container">
-  {#each pressedKeys as key}
-    <div class="key">
-      <div class="key-inner">
-        <span>{keycodeToKey[key]}</span>
+  <br />
+
+  {#if keybinds.length > 0}
+    <div class="keybind-container">
+      <h3 class="keybind-title">{keybinds[keybindIndex].command}</h3>
+      <div class="key-container">
+        {#each keybinds[keybindIndex].keys as key}
+          <div class="key-card unknown-key">
+            <div class="key-card-inner">
+              <span>?</span>
+            </div>
+          </div>
+        {/each}
       </div>
     </div>
-  {/each}
+  {/if}
+
+  <div class="keybind-container">
+    <h3 class="active-title">Active Keys</h3>
+    <div class="key-container">
+      {#if pressedKeys.length == 0}
+        <div class="key-card-placeholder"><span>None</span></div>
+      {/if}
+      {#each pressedKeys as key}
+        <div class="key-card">
+          <div class="key-card-inner">
+            <span>{keycodeToKey[key].toUpperCase()}</span>
+          </div>
+        </div>
+      {/each}
+    </div>
+  </div>
 </div>
 
-<span>Loaded {keybinds.length} keybindings</span>
-
-{#if keybinds.length > 0}
-  <br />
-  <button on:click={() => pickNewKeybind()}>New Keybind</button>
-  <span>Chosen Keybind: {keybinds[keybindIndex].command}</span>
-  <br />
-  {#each keybinds[keybindIndex].keys as key}
-    <span>{keycodeToKey[key]}</span>
-  {/each}
-
-  <div class="container">
-    {#each keybinds[keybindIndex].keys as key}
-      <div class="key">
-        <div class="key-inner">
-          <span>{key}</span>
-        </div>
-      </div>
-    {/each}
-  </div>
-{/if}
-
 <style>
-  .container {
-    display: flex;
-    flex-direction: row;
+  body {
+    margin: 0;
+    padding: 0;
   }
 
-  .key {
+  #container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .keybind-title {
+    font-size: 20px;
+    padding: 10px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  .active-title {
+    font-size: 20px;
+    padding: 10px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  .keybind-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .key-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    border: dashed 2px black;
+    width: 80vw;
+    padding: 20px 0;
+    border-radius: 10px;
+  }
+
+  .key-card {
     display: flex;
     width: 100px;
     height: 100px;
@@ -207,7 +257,18 @@
     background-color: #454545;
   }
 
-  .key-inner {
+  .key-card-placeholder {
+    display: flex;
+    width: 100px;
+    height: 100px;
+    margin: 2px;
+    justify-content: center;
+    align-content: center;
+    border-radius: 5px;
+    border: solid 1px #454545;
+  }
+
+  .key-card-inner {
     display: flex;
     margin-top: 5px;
     width: 90px;
@@ -219,8 +280,20 @@
     box-shadow: 0px 5px 0px 0px #c9c9c9;
   }
 
-  .key-inner > span {
+  .key-card-inner > span {
     color: #454545;
     font-size: 24px;
+  }
+
+  .unknown-key > .key-card-inner {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAPUlEQVQoU43PQQoAMAgDweT/j7ZYUGoRo+dhicTujAtnAKjgRR6bYCIFy6quWEqh1casvrAt/cURxTMSOTyKNQgKOBqKWwAAAABJRU5ErkJggg==");
+    background-repeat: repeat;
+  }
+
+  .unknown-key > .key-card-inner > span {
+    background-color: white;
+    border-radius: 5px;
+    padding: 5px 12px;
+    border: solid 1px #454545;
   }
 </style>
