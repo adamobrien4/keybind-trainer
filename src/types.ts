@@ -10,3 +10,9 @@ export type KeyToKeycode = {
 export type KeycodeToKey = {
   [key: number]: string;
 };
+
+export type AppState = {
+  status: "LOADING" | "READY";
+  keybind: Keybind;
+  keybindCount: number;
+};

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import * as vscode from "vscode";
 import { keybindsFilePathKey } from "./constants";
 import { getNonce } from "./getNonce";
-import { KeyToKeycode } from "./types";
+import { AppState, Keybind, KeyToKeycode } from "./types";
 
 export class KeybindTrainerPanel {
   /**
@@ -11,12 +11,9 @@ export class KeybindTrainerPanel {
   public static currentPanel: KeybindTrainerPanel | undefined;
 
   public static readonly viewType = "swiper";
+  private static keybinds: Keybind[] = [];
 
-  private readonly _panel: vscode.WebviewPanel;
-  private readonly _extensionUri: vscode.Uri;
-  private _disposables: vscode.Disposable[] = [];
-
-  private _keyToKeycode: KeyToKeycode = {
+  private static _keyToKeycode: KeyToKeycode = {
     backspace: 8,
     tab: 9,
     enter: 13,
@@ -122,6 +119,11 @@ export class KeybindTrainerPanel {
     backquote: 222, // aka. singlequote
   };
 
+  private readonly _panel: vscode.WebviewPanel;
+  private readonly _extensionUri: vscode.Uri;
+  private _disposables: vscode.Disposable[] = [];
+  private keybindIndex = 0;
+
   public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
@@ -155,6 +157,53 @@ export class KeybindTrainerPanel {
       panel,
       extensionUri
     );
+
+    // Load all keybinds
+    this._getKeybinds();
+  }
+
+  private static _getKeybinds() {
+    vscode.window.showInformationMessage(
+      "Request for Keybindings has been made"
+    );
+
+    // TODO: Move into service
+    console.log("Reading keybinds");
+    const fileDirectory = vscode.workspace
+      .getConfiguration("keybind-trainer")
+      .get<string>(keybindsFilePathKey);
+
+    if (fileDirectory === undefined || !existsSync(fileDirectory)) {
+      vscode.window.showErrorMessage(
+        `'keybind-trainer.${keybindsFilePathKey}' is invalid or does not exist on file`
+      );
+      return;
+    }
+
+    var obj = JSON.parse(readFileSync(fileDirectory, "utf8")) as {
+      command: string;
+      key: string;
+    }[];
+
+    let parsedAndFormatted: Keybind[] = [];
+
+    // Parse keys into better format
+    for (let keybind of obj) {
+      let keyStr = keybind.key;
+
+      // Check that the keybind has keys set
+      if (keyStr !== "") {
+        let keys = keybind.key
+          .split("+")
+          .map(
+            (key: string) =>
+              this._keyToKeycode[key.toLowerCase().replace(/\[|\]/g, "")]
+          );
+        parsedAndFormatted.push({ command: keybind.command, keys: keys });
+      }
+    }
+
+    this.keybinds = parsedAndFormatted;
   }
 
   public static kill() {
@@ -211,57 +260,39 @@ export class KeybindTrainerPanel {
   private async _update() {
     const webview = this._panel.webview;
 
+    // TODO: Remove any keybinds which require keypresses one after another for now
+    // TODO: Fix bug where page is reset on refocus
+    /**
+     * 1. Load all keybinds when extension starts
+     * 2. Save these to a state object
+     * 3. When the webview opens, ask vscode for this state and handle approperiately
+     * 4. The webview can then ask for the state when refocused to pick up where we were before
+     *
+     * State Object: {
+     *  keybindings: [...],
+     *  activeKeybind: number,
+     * }
+     */
+
     this._panel.webview.html = this._getHtmlForWebview(webview);
     webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
-        case "onRequestKeybindings": {
-          vscode.window.showInformationMessage(
-            "Request for Keybindings has been made"
+        case "onRequestAppState":
+          vscode.window.showInformationMessage("Request app state");
+          console.log(this.keybindIndex);
+          let state: AppState = {
+            status: "READY",
+            keybind: KeybindTrainerPanel.keybinds[this.keybindIndex],
+            keybindCount: KeybindTrainerPanel.keybinds.length,
+          };
+          webview.postMessage({ type: "onRequestAppState", value: state });
+          break;
+        case "onRequestNewKeybind":
+          vscode.window.showInformationMessage("Requesting new keybind");
+          this.keybindIndex = Math.round(
+            Math.random() * KeybindTrainerPanel.keybinds.length
           );
-
-          // TODO: Move into service
-          console.log("Reading keybinds");
-          const fileDirectory = vscode.workspace
-            .getConfiguration("keybind-trainer")
-            .get<string>(keybindsFilePathKey);
-
-          if (fileDirectory === undefined || !existsSync(fileDirectory)) {
-            vscode.window.showErrorMessage(
-              `'keybind-trainer.${keybindsFilePathKey}' is invalid or does not exist on file`
-            );
-            return;
-          }
-
-          var obj = JSON.parse(readFileSync(fileDirectory, "utf8")) as {
-            command: string;
-            key: string;
-          }[];
-          console.log(obj);
-
-          let parsedAndFormatted: { command: string; keys: number[] }[] = [];
-
-          // Parse keys into better format
-          for (let keybind of obj) {
-            let keyStr = keybind.key;
-
-            // Check that the keybind has keys set
-            if (keyStr !== "") {
-              let keys = keybind.key
-                .split("+")
-                .map(
-                  (key: string) =>
-                    this._keyToKeycode[key.toLowerCase().replace(/\[|\]/g, "")]
-                );
-              parsedAndFormatted.push({ command: keybind.command, keys: keys });
-            }
-          }
-
-          // Send response to webview
-          webview.postMessage({
-            type: "onResponseKeybindings",
-            value: parsedAndFormatted,
-          });
-        }
+          break;
         case "onInfo": {
           if (!data.value) {
             return;

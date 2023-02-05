@@ -37,17 +37,6 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("keybind-trainer.read-keybinds", () => {
-      console.log("Reading keybinds");
-      // TODO: Ask user to define this path, or retrieve from users settings
-      const keybindingsFilePath =
-        "C:/Users/adamp/AppData/Roaming/Code/User/keybindings.json";
-
-      console.log(JSON.parse(readFileSync(keybindingsFilePath, "utf8")));
-    })
-  );
-
-  context.subscriptions.push(
     vscode.commands.registerCommand("keybind-trainer.set-state", () => {
       // NOTE: The value must be JSON-stringify-able
       context.globalState.update("keybindingsFilePath", "C:/home/file.json");
