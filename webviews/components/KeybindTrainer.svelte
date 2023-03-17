@@ -3,11 +3,9 @@
   // No type declaration for pressed.js library, must be imported this way
   // @ts-ignore
   import * as pressed from "pressed";
-  import type { Keybind, KeycodeToKey } from "../../src/types";
+  import type { AppState, KeycodeToKey, Message } from "../../src/types";
   import { xor } from "lodash";
   import JSConfetti from "js-confetti";
-
-  const jsConfetti = new JSConfetti();
 
   export const keycodeToKey: KeycodeToKey = {
     8: "backspace",
@@ -108,18 +106,39 @@
     222: "backquote",
   };
 
-  let keybinds: Keybind[] = [];
+  const jsConfetti = new JSConfetti();
+
+  let state: AppState = {
+    status: { state: "LOADING", reason: "loading" },
+    keybind: {
+      command: "Empty",
+      keys: [],
+    },
+    keybindCount: 0,
+  };
   let pressedKeys: number[] = [];
-  let keybindIndex = Math.random() * keybinds.length;
-  let showConfetti = true;
+  let showConfetti = false;
+
+  function requestAppState() {
+    console.log("Requesting app state from svelte");
+    tsvscode.postMessage({
+      type: "onRequestAppState",
+      value: null,
+    });
+  }
+
+  function setAppState(newState: AppState) {
+    state = newState;
+  }
 
   function onWindowMessage(event: any) {
     console.log("Message Recieved: ", { event });
-    const message = event.data;
+    const message: Message = event.data;
     switch (message.type) {
-      case "onResponseKeybindings":
-        console.log(message.value);
-        keybinds = message.value as Keybind[];
+      case "onRequestAppState":
+        console.log("onRequestAppState:", message.value);
+
+        setAppState(message.value as AppState);
         break;
     }
   }
@@ -127,89 +146,99 @@
   function updatePressedKeys(event: any) {
     pressedKeys = pressed.listAllKeyCodes();
 
-    console.log(pressedKeys.length, keybinds[keybindIndex].keys.length);
-    if (pressedKeys.length === keybinds[keybindIndex].keys.length) {
+    console.log(pressedKeys.length, state.keybind.keys.length);
+    if (pressedKeys.length === state.keybind.keys.length) {
       // Check if arrays are equal
-      let doesKeybindMatch =
-        xor(pressedKeys, keybinds[keybindIndex].keys).length === 0;
-      console.log(pressedKeys, "==", keybinds[keybindIndex].keys);
+      let doesKeybindMatch = xor(pressedKeys, state.keybind.keys).length === 0;
+      console.log(pressedKeys, "==", state.keybind.keys);
       console.log("XOR", doesKeybindMatch);
 
-      if (doesKeybindMatch && showConfetti) {
-        showConfetti = false;
+      if (doesKeybindMatch && !showConfetti) {
+        showConfetti = true;
         jsConfetti.addConfetti();
         setTimeout(() => {
-          showConfetti = true;
-          pickNewKeybind();
+          showConfetti = false;
+          requestNewKeybind();
         }, 1500);
       }
     }
   }
 
-  function pickNewKeybind() {
-    console.log("New bind: ", keybinds.length);
-    keybindIndex = Math.round(Math.random() * keybinds.length);
-    console.log(keybindIndex);
+  function requestNewKeybind() {
+    tsvscode.postMessage({
+      type: "onRequestNewKeybind",
+      value: null,
+    });
+    requestAppState();
   }
 
   onMount(async () => {
+    console.log("Mounting...");
     pressed.start();
     window.addEventListener("message", onWindowMessage);
     window.addEventListener("keydown", updatePressedKeys);
     window.addEventListener("keyup", updatePressedKeys);
 
-    tsvscode.postMessage({ type: "onRequestKeybindings", value: null });
+    requestAppState();
   });
   onDestroy(() => {
     window.removeEventListener("message", onWindowMessage);
+    window.removeEventListener("keydown", updatePressedKeys);
+    window.removeEventListener("keyup", updatePressedKeys);
   });
 </script>
 
 <div id="container">
-  <h1>Adam's Keybind Trainer</h1>
+  {#if state.status.state === "LOADING"}
+    <h1>Loading State ...</h1>
+  {:else if state.status.state === "ERROR"}
+    <h1>Error cannot start app</h1>
+    <span>{state.status.reason}</span>
+    <p>Update this setting and restart the extension</p>
+  {:else}
+    <h1>Adam's Keybind Trainer</h1>
 
-  <span>Loaded {keybinds.length} keybindings</span>
+    <span>Loaded {state.keybindCount} keybindings</span>
 
-  <br />
+    <br />
 
-  {#if keybinds.length > 0}
     <div class="keybind-container">
-      <h3 class="keybind-title">{keybinds[keybindIndex].command}</h3>
+      <h3 class="keybind-title">{state.keybind.command}</h3>
       <div class="key-container">
-        {#each keybinds[keybindIndex].keys as key}
-          <div class="key-card unknown-key">
+        {#each state.keybind.keys as key}
+          <div class="key-card unknown-key" class:unknown-key={!showConfetti}>
             <div class="key-card-inner">
-              <span>?</span>
+              <span>{showConfetti ? keycodeToKey[key].toUpperCase() : "?"}</span
+              >
             </div>
           </div>
         {/each}
       </div>
     </div>
-  {/if}
 
-  <div class="keybind-container">
-    <h3 class="active-title">Active Keys</h3>
-    <div class="key-container">
-      {#if pressedKeys.length == 0}
-        <div class="key-card-placeholder"><span>None</span></div>
-      {/if}
-      {#each pressedKeys as key}
-        <div class="key-card">
-          <div class="key-card-inner">
-            <span>{keycodeToKey[key].toUpperCase()}</span>
+    <div class="keybind-container">
+      <h3 class="active-title">Active Keys</h3>
+      <div class="key-container">
+        {#if pressedKeys.length == 0}
+          <div class="key-card-placeholder"><span>None</span></div>
+        {/if}
+        {#each pressedKeys as key}
+          <div class="key-card">
+            <div class="key-card-inner">
+              <span>{keycodeToKey[key].toUpperCase()}</span>
+            </div>
           </div>
-        </div>
-      {/each}
+        {/each}
+      </div>
     </div>
-  </div>
+
+    <button on:click={requestNewKeybind} class="random-keybind-btn"
+      >Fetch random Keybind</button
+    >
+  {/if}
 </div>
 
 <style>
-  body {
-    margin: 0;
-    padding: 0;
-  }
-
   #container {
     display: flex;
     flex-direction: column;
@@ -295,5 +324,10 @@
     border-radius: 5px;
     padding: 5px 12px;
     border: solid 1px #454545;
+  }
+
+  .random-keybind-btn {
+    width: 80vw;
+    margin-top: 40px;
   }
 </style>
