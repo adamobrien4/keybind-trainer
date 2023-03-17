@@ -6,9 +6,25 @@
   "engines": {
     "vscode": "^1.74.0"
   },
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adamobrien4/keybind-trainer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/adamobrien4/keybind-trainer/issues"
+  },
+  "homepage": "https://github.com/adamobrien4/keybind-trainer/blob/main/README.md",
+  "publisher": "adamobrien4",
   "categories": [
-    "Other"
+    "Keymaps",
+    "Education"
   ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#FFFFFF",
+    "theme": "light"
+  },
   "activationEvents": [
     "onCommand:keybind-trainer.showWebview",
     "onCommand:keybind-trainer.refresh"
@@ -21,7 +37,7 @@
         "keybind-trainer.keybindingsFilePath": {
           "type": "string",
           "default": "",
-          "description": "File path to the keybindings file of VSCode\nD:/Dev/Programs/.../Code/keybindings.json"
+          "description": "File path to the keybindings file of VSCode\nC:/Users/user/AppData/.../Code/User/keybindings.json"
         }
       }
     },
@@ -35,16 +51,6 @@
         "command": "keybind-trainer.refresh",
         "category": "Keybind Trainer",
         "title": "Refresh"
-      },
-      {
-        "command": "keybind-trainer.set-state",
-        "category": "Keybind Trainer",
-        "title": "Set State"
-      },
-      {
-        "command": "keybind-trainer.get-state",
-        "category": "Keybind Trainer",
-        "title": "Get State"
       }
     ]
   },

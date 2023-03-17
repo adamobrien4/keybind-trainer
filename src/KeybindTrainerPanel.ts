@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import * as vscode from "vscode";
 import { keybindsFilePathKey } from "./constants";
 import { getNonce } from "./getNonce";
-import { AppState, Keybind, KeyToKeycode } from "./types";
+import { AppState, AppStates, AppStatus, Keybind, KeyToKeycode } from "./types";
 
 export class KeybindTrainerPanel {
   /**
@@ -123,6 +123,7 @@ export class KeybindTrainerPanel {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
   private keybindIndex = 0;
+  private static state: AppStatus = { state: "LOADING", reason: "Startup" };
 
   public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
@@ -163,20 +164,19 @@ export class KeybindTrainerPanel {
   }
 
   private static _getKeybinds() {
-    vscode.window.showInformationMessage(
-      "Request for Keybindings has been made"
-    );
-
-    // TODO: Move into service
-    console.log("Reading keybinds");
     const fileDirectory = vscode.workspace
       .getConfiguration("keybind-trainer")
       .get<string>(keybindsFilePathKey);
 
     if (fileDirectory === undefined || !existsSync(fileDirectory)) {
-      vscode.window.showErrorMessage(
-        `'keybind-trainer.${keybindsFilePathKey}' is invalid or does not exist on file`
-      );
+      // vscode.window.showErrorMessage(
+      //   `Setting: 'keybind-trainer.${keybindsFilePathKey}' is invalid or does not exist on file`
+      // );
+      this.state = {
+        state: "ERROR",
+        reason:
+          "Cannot read keybindsFilePathKey setting. Invalid path or not exists",
+      };
       return;
     }
 
@@ -187,12 +187,30 @@ export class KeybindTrainerPanel {
 
     let parsedAndFormatted: Keybind[] = [];
 
+    let commands = new Set();
+
     // Parse keys into better format
     for (let keybind of obj) {
+      if (commands.has(keybind.command)) {
+        // TODO: Ask user to define which duplicate command to include
+        // As some default commands the user doens't want to use
+        console.log(keybind.command, "exists");
+      } else {
+        commands.add(keybind.command);
+      }
+
       let keyStr = keybind.key;
 
       // Check that the keybind has keys set
       if (keyStr !== "") {
+        if (keybind.key.includes(" ")) {
+          // Is a following command, e.g. shift shift in quick succession
+          // Skip these commands for now
+          console.log(
+            "Skipping " + keybind.command + " as it is a following command"
+          );
+          continue;
+        }
         let keys = keybind.key
           .split("+")
           .map(
@@ -204,6 +222,7 @@ export class KeybindTrainerPanel {
     }
 
     this.keybinds = parsedAndFormatted;
+    this.state = { state: "READY", reason: "ok" };
   }
 
   public static kill() {
@@ -228,19 +247,6 @@ export class KeybindTrainerPanel {
     // Listen for when the panel is disposed
     // This happens when the user closes the panel or when the panel is closed programatically
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-
-    // // Handle messages from the webview
-    // this._panel.webview.onDidReceiveMessage(
-    //   (message) => {
-    //     switch (message.command) {
-    //       case "alert":
-    //         vscode.window.showErrorMessage(message.text);
-    //         return;
-    //     }
-    //   },
-    //   null,
-    //   this._disposables
-    // );
   }
 
   public dispose() {
@@ -261,34 +267,42 @@ export class KeybindTrainerPanel {
     const webview = this._panel.webview;
 
     // TODO: Remove any keybinds which require keypresses one after another for now
-    // TODO: Fix bug where page is reset on refocus
-    /**
-     * 1. Load all keybinds when extension starts
-     * 2. Save these to a state object
-     * 3. When the webview opens, ask vscode for this state and handle approperiately
-     * 4. The webview can then ask for the state when refocused to pick up where we were before
-     *
-     * State Object: {
-     *  keybindings: [...],
-     *  activeKeybind: number,
-     * }
-     */
 
     this._panel.webview.html = this._getHtmlForWebview(webview);
     webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case "onRequestAppState":
-          vscode.window.showInformationMessage("Request app state");
+          // vscode.window.showInformationMessage("Request app state");
           console.log(this.keybindIndex);
-          let state: AppState = {
-            status: "READY",
-            keybind: KeybindTrainerPanel.keybinds[this.keybindIndex],
-            keybindCount: KeybindTrainerPanel.keybinds.length,
-          };
-          webview.postMessage({ type: "onRequestAppState", value: state });
+
+          let state: AppState;
+
+          switch (KeybindTrainerPanel.state.state) {
+            case "LOADING":
+            case "READY":
+              state = {
+                status: KeybindTrainerPanel.state,
+                keybind: KeybindTrainerPanel.keybinds[this.keybindIndex],
+                keybindCount: KeybindTrainerPanel.keybinds.length,
+              };
+              break;
+            case "ERROR":
+              state = {
+                status: KeybindTrainerPanel.state,
+                keybind: KeybindTrainerPanel.keybinds[this.keybindIndex],
+                keybindCount: KeybindTrainerPanel.keybinds.length,
+              };
+              break;
+          }
+
+          webview.postMessage({
+            type: "onRequestAppState",
+            value: state,
+            status: KeybindTrainerPanel.state,
+          });
           break;
         case "onRequestNewKeybind":
-          vscode.window.showInformationMessage("Requesting new keybind");
+          // vscode.window.showInformationMessage("Requesting new keybind");
           this.keybindIndex = Math.round(
             Math.random() * KeybindTrainerPanel.keybinds.length
           );

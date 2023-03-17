@@ -1,13 +1,11 @@
 <script lang="ts">
-  import { afterUpdate, onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   // No type declaration for pressed.js library, must be imported this way
   // @ts-ignore
   import * as pressed from "pressed";
-  import type { AppState, Keybind, KeycodeToKey } from "../../src/types";
+  import type { AppState, KeycodeToKey, Message } from "../../src/types";
   import { xor } from "lodash";
   import JSConfetti from "js-confetti";
-
-  const jsConfetti = new JSConfetti();
 
   export const keycodeToKey: KeycodeToKey = {
     8: "backspace",
@@ -108,8 +106,10 @@
     222: "backquote",
   };
 
+  const jsConfetti = new JSConfetti();
+
   let state: AppState = {
-    status: "LOADING",
+    status: { state: "LOADING", reason: "loading" },
     keybind: {
       command: "Empty",
       keys: [],
@@ -133,11 +133,11 @@
 
   function onWindowMessage(event: any) {
     console.log("Message Recieved: ", { event });
-    const message = event.data;
+    const message: Message = event.data;
     switch (message.type) {
       case "onRequestAppState":
         console.log("onRequestAppState:", message.value);
-        // FIXME: Should await app state in order for svelte to rerender ui
+
         setAppState(message.value as AppState);
         break;
     }
@@ -189,8 +189,12 @@
 </script>
 
 <div id="container">
-  {#if state.status === "LOADING"}
+  {#if state.status.state === "LOADING"}
     <h1>Loading State ...</h1>
+  {:else if state.status.state === "ERROR"}
+    <h1>Error cannot start app</h1>
+    <span>{state.status.reason}</span>
+    <p>Update this setting and restart the extension</p>
   {:else}
     <h1>Adam's Keybind Trainer</h1>
 
@@ -227,6 +231,10 @@
         {/each}
       </div>
     </div>
+
+    <button on:click={requestNewKeybind} class="random-keybind-btn"
+      >Fetch random Keybind</button
+    >
   {/if}
 </div>
 
@@ -316,5 +324,10 @@
     border-radius: 5px;
     padding: 5px 12px;
     border: solid 1px #454545;
+  }
+
+  .random-keybind-btn {
+    width: 80vw;
+    margin-top: 40px;
   }
 </style>
