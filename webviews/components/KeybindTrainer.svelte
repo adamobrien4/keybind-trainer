@@ -109,11 +109,12 @@
   const jsConfetti = new JSConfetti();
 
   let state: AppState = {
-    status: { state: "LOADING", reason: "loading" },
+    status: { value: "LOADING", reason: "loading" },
     keybind: {
-      command: "Empty",
-      keys: [],
+      value: { command: "Empty", keys: [] },
+      progress: { attempts: 0, correctAttempts: 0 },
     },
+
     keybindCount: 0,
   };
   let pressedKeys: number[] = [];
@@ -146,11 +147,12 @@
   function updatePressedKeys(event: any) {
     pressedKeys = pressed.listAllKeyCodes();
 
-    console.log(pressedKeys.length, state.keybind.keys.length);
-    if (pressedKeys.length === state.keybind.keys.length) {
+    console.log(pressedKeys.length, state.keybind.value.keys.length);
+    if (pressedKeys.length === state.keybind.value.keys.length) {
       // Check if arrays are equal
-      let doesKeybindMatch = xor(pressedKeys, state.keybind.keys).length === 0;
-      console.log(pressedKeys, "==", state.keybind.keys);
+      let doesKeybindMatch =
+        xor(pressedKeys, state.keybind.value.keys).length === 0;
+      console.log(pressedKeys, "==", state.keybind.value.keys);
       console.log("XOR", doesKeybindMatch);
 
       if (doesKeybindMatch && !showConfetti) {
@@ -158,16 +160,21 @@
         jsConfetti.addConfetti();
         setTimeout(() => {
           showConfetti = false;
-          requestNewKeybind();
+          requestNewKeybind(true);
         }, 1500);
       }
     }
   }
 
-  function requestNewKeybind() {
+  /**
+   * Sends a request to fetch a new keybind
+   *
+   * @input keybindCorrect, whether we are fetching becaues the guess was correct or not
+   */
+  function requestNewKeybind(keybindCorrect: boolean = false) {
     tsvscode.postMessage({
       type: "onRequestNewKeybind",
-      value: null,
+      value: keybindCorrect,
     });
     requestAppState();
   }
@@ -189,9 +196,9 @@
 </script>
 
 <div id="container">
-  {#if state.status.state === "LOADING"}
+  {#if state.status.value === "LOADING"}
     <h1>Loading State ...</h1>
-  {:else if state.status.state === "ERROR"}
+  {:else if state.status.value === "ERROR"}
     <h1>Error cannot start app</h1>
     <span>{state.status.reason}</span>
     <p>Update this setting and restart the extension</p>
@@ -203,9 +210,13 @@
     <br />
 
     <div class="keybind-container">
-      <h3 class="keybind-title">{state.keybind.command}</h3>
+      <h3 class="keybind-title">{state.keybind.value.command}</h3>
+      <span
+        >Attempts: {state.keybind.progress.attempts} Correct Attempts: {state
+          .keybind.progress.correctAttempts}</span
+      >
       <div class="key-container">
-        {#each state.keybind.keys as key}
+        {#each state.keybind.value.keys as key}
           <div class="key-card unknown-key" class:unknown-key={!showConfetti}>
             <div class="key-card-inner">
               <span>{showConfetti ? keycodeToKey[key].toUpperCase() : "?"}</span
@@ -232,7 +243,7 @@
       </div>
     </div>
 
-    <button on:click={requestNewKeybind} class="random-keybind-btn"
+    <button on:click={() => requestNewKeybind(false)} class="random-keybind-btn"
       >Fetch random Keybind</button
     >
   {/if}

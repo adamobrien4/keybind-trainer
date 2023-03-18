@@ -1,8 +1,15 @@
 import { existsSync, readFileSync } from "fs";
 import * as vscode from "vscode";
-import { keybindsFilePathKey } from "./constants";
+import { keybindsFilePathKey, userProgressKey } from "./constants";
 import { getNonce } from "./getNonce";
-import { AppState, AppStates, AppStatus, Keybind, KeyToKeycode } from "./types";
+import {
+  AppState,
+  AppStatuses,
+  AppStatus,
+  Keybind,
+  KeyToKeycode,
+  UserProgressState,
+} from "./types";
 
 export class KeybindTrainerPanel {
   /**
@@ -12,6 +19,7 @@ export class KeybindTrainerPanel {
 
   public static readonly viewType = "swiper";
   private static keybinds: Keybind[] = [];
+  private static userProgress: UserProgressState = {};
 
   private static _keyToKeycode: KeyToKeycode = {
     backspace: 8,
@@ -123,7 +131,7 @@ export class KeybindTrainerPanel {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
   private keybindIndex = 0;
-  private static state: AppStatus = { state: "LOADING", reason: "Startup" };
+  private static state: AppStatus = { value: "LOADING", reason: "Startup" };
 
   public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
@@ -159,8 +167,32 @@ export class KeybindTrainerPanel {
       extensionUri
     );
 
+    // Read user progress from last session
+    this._loadUserProgress();
+
     // Load all keybinds
     this._getKeybinds();
+  }
+
+  private static _loadUserProgress() {
+    // Load json from storage, if exists
+    const userProgressState = vscode.workspace
+      .getConfiguration("keybind-trainer")
+      .get<string>(userProgressKey);
+
+    // Update the current sessions state
+    if (userProgressState !== undefined) {
+      KeybindTrainerPanel.userProgress = JSON.parse(userProgressState);
+    }
+  }
+
+  private static _saveUserProgress() {
+    vscode.workspace
+      .getConfiguration("keybind-trainer")
+      .update(
+        userProgressKey,
+        JSON.stringify(KeybindTrainerPanel.userProgress)
+      );
   }
 
   private static _getKeybinds() {
@@ -173,7 +205,7 @@ export class KeybindTrainerPanel {
       //   `Setting: 'keybind-trainer.${keybindsFilePathKey}' is invalid or does not exist on file`
       // );
       this.state = {
-        state: "ERROR",
+        value: "ERROR",
         reason:
           "Cannot read keybindsFilePathKey setting. Invalid path or not exists",
       };
@@ -199,6 +231,14 @@ export class KeybindTrainerPanel {
         commands.add(keybind.command);
       }
 
+      // Check if this keybind is in userProgressState
+      if (!(keybind.command in KeybindTrainerPanel.userProgress)) {
+        KeybindTrainerPanel.userProgress[keybind.command] = {
+          attempts: 0,
+          correctAttempts: 0,
+        };
+      }
+
       let keyStr = keybind.key;
 
       // Check that the keybind has keys set
@@ -222,7 +262,7 @@ export class KeybindTrainerPanel {
     }
 
     this.keybinds = parsedAndFormatted;
-    this.state = { state: "READY", reason: "ok" };
+    this.state = { value: "READY", reason: "ok" };
   }
 
   public static kill() {
@@ -255,6 +295,9 @@ export class KeybindTrainerPanel {
     // Clean up our resources
     this._panel.dispose();
 
+    // Save user progress
+    KeybindTrainerPanel._saveUserProgress();
+
     while (this._disposables.length) {
       const x = this._disposables.pop();
       if (x) {
@@ -276,20 +319,29 @@ export class KeybindTrainerPanel {
           console.log(this.keybindIndex);
 
           let state: AppState;
+          let keybind: Keybind =
+            KeybindTrainerPanel.keybinds[this.keybindIndex];
+          let keyProgress = KeybindTrainerPanel.userProgress[keybind.command];
 
-          switch (KeybindTrainerPanel.state.state) {
+          switch (KeybindTrainerPanel.state.value) {
             case "LOADING":
             case "READY":
               state = {
                 status: KeybindTrainerPanel.state,
-                keybind: KeybindTrainerPanel.keybinds[this.keybindIndex],
+                keybind: {
+                  value: keybind,
+                  progress: keyProgress,
+                },
                 keybindCount: KeybindTrainerPanel.keybinds.length,
               };
               break;
             case "ERROR":
               state = {
                 status: KeybindTrainerPanel.state,
-                keybind: KeybindTrainerPanel.keybinds[this.keybindIndex],
+                keybind: {
+                  value: keybind,
+                  progress: keyProgress,
+                },
                 keybindCount: KeybindTrainerPanel.keybinds.length,
               };
               break;
@@ -302,10 +354,23 @@ export class KeybindTrainerPanel {
           });
           break;
         case "onRequestNewKeybind":
-          // vscode.window.showInformationMessage("Requesting new keybind");
+          // Check if the user successfully guessed the last keybind
+          if (data.value) {
+            // Increment the correctAttempts
+            KeybindTrainerPanel.userProgress[
+              KeybindTrainerPanel.keybinds[this.keybindIndex].command
+            ].correctAttempts++;
+          }
+
           this.keybindIndex = Math.round(
             Math.random() * KeybindTrainerPanel.keybinds.length
           );
+
+          // Add attempt to chosen keybind
+          KeybindTrainerPanel.userProgress[
+            KeybindTrainerPanel.keybinds[this.keybindIndex].command
+          ].attempts++;
+
           break;
         case "onInfo": {
           if (!data.value) {

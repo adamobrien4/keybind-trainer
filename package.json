@@ -45,7 +45,7 @@
       {
         "command": "keybind-trainer.showWebview",
         "category": "Keybind Trainer",
-        "title": "Show Webview"
+        "title": "Launch"
       },
       {
         "command": "keybind-trainer.refresh",
